@@ -17,7 +17,10 @@ const snapshots = pick.filter((s) => /^\d{4}-\d{2}-\d{2}$/.test(s.date) && Numbe
   .map((s) => ({ date: s.date, total_value: Number(s.total_value), positions: (s.positions || []).map((p) => ({ naam: p.naam, fondscode: p.fondscode, aandelen: Number(p.aandelen), koers: Number(p.koers), koers_datum: p.koers_datum, waarde: Number(p.waarde) })) }));
 if (!snapshots.length) { console.error('Geen dagstanden gevonden.'); process.exit(1); }
 
-const body = JSON.stringify({ snapshots });
+// Laatste koers per fonds (bijgewerkt door de dagelijkse beleggen-snapshot).
+let koersen = {};
+try { koersen = JSON.parse(fs.readFileSync(path.join(os.homedir(), 'finance/rules/beleggen-fondsen.json'), 'utf8')); } catch { /* geen koersbestand */ }
+const body = JSON.stringify({ snapshots, koersen });
 const ts = Math.floor(Date.now() / 1000);
 const rid = crypto.randomBytes(18).toString('base64url');
 const sig = crypto.createHmac('sha256', env.INGEST_SECRET).update(`POST\n/api/beleggen\n${ts}\n${rid}\n${body}`).digest('hex');
