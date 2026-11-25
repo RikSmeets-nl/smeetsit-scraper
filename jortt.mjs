@@ -86,12 +86,17 @@ async function selectOrg(page) {
   if (cur && ORG.kw.test(cur) && !/sandbox/i.test(cur)) return;
   await page.click('#spec-profile-select-button').catch(() => {});
   await page.waitForTimeout(1200);
-  const opts = page.locator('[role="option"], [role="menuitem"], li, button');
+  // Eerst exacte naam (menu-items zijn links), daarna kortste element dat op het keyword matcht.
+  const exact = page.getByText(ORG.name, { exact: true });
+  if (await exact.count().catch(() => 0)) { await exact.first().click({ timeout: 6000 }); await page.waitForTimeout(3000); return; }
+  const opts = page.locator('a, [role="option"], [role="menuitem"], li, button');
   const n = await opts.count().catch(() => 0);
+  let best = null;
   for (let i = 0; i < n; i++) {
     const t = (await opts.nth(i).innerText().catch(() => '')).trim();
-    if (t && ORG.kw.test(t) && !/sandbox/i.test(t)) { await opts.nth(i).click({ timeout: 6000 }); await page.waitForTimeout(3000); return; }
+    if (t && ORG.kw.test(t) && !/sandbox/i.test(t) && (!best || t.length < best.t.length)) best = { i, t };
   }
+  if (best) { await opts.nth(best.i).click({ timeout: 6000 }); await page.waitForTimeout(3000); return; }
   // Eén administratie onder dit login: dan is er geen keuzelijst en zitten we al goed.
   if (!cur) return;
   throw new Error(`Administratie '${ORG.name}' niet gevonden (huidig: ${cur})`);
@@ -113,7 +118,9 @@ try {
     const r = parsePL(pl);
     const bal = await captureJson(page, reportURL(y, 'balance'), 'new_reports/balance', (j) => Array.isArray(j.balance) && j.balance.length > 0);
     if (bal) r.balance = parseBalance(bal);
-    if (validYear(r)) { wv[y] = r; console.log(`${y}: omzet ${r.opbrengsten} winst ${r.winst}`); } else console.warn(`${y}: faalt contract, overgeslagen`);
+    if (validYear(r)) { wv[y] = r; console.log(`${y}: ok (${r.months.length} maanden)`); }
+    else if (!r.opbrengsten && !r.kosten) console.log(`${y}: geen boekingen`);
+    else console.warn(`${y}: faalt contract (${r.months.length} maanden), overgeslagen`);
   }
   const extra = { scraped_at: new Date().toISOString(), source: 'jortt-web' };
   const bt = await captureJson(page, 'https://app.jortt.nl/new_reports/list/ll/btw/list', '/jortt/page/btw/list', (j) => Array.isArray(j.vat_periods));
