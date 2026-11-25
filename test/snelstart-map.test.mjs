@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildYear } from '../lib/snelstart-map.mjs';
+import { buildYear, mapInvoice } from '../lib/snelstart-map.mjs';
 import { validYear } from '../lib/contract.mjs';
 
 test('cumulatief resultaat wordt per maand en kosten = omzet - resultaat', () => {
@@ -32,4 +32,9 @@ test('toekomstige maanden van lopend jaar tellen niet mee', () => {
   const r = buildYear(2026, rev, cum, { isCurrent: true, now: new Date('2026-11-25') });
   assert.equal(r.months[11].winst, 0);
   assert.equal(r.winst, 110);
+});
+
+test('factuur: bedrag is incl. btw, excl. omgerekend met 21%', () => {
+  const f = mapInvoice({ invoiceNumber: '10031', customerName: ' Klant BV ', invoiceDate: '2026-11-01T00:00:00', total: 60.5, invoiceTotal: 60.5, remainingInvoiceTotal: 60.5, isConcept: false });
+  assert.deepEqual(f, { number: '10031', customer: 'Klant BV', customer_code: null, date: '2026-11-01', excl: 50, incl: 60.5, open: 60.5, concept: false });
 });
