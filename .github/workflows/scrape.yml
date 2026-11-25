@@ -1,0 +1,40 @@
+name: scrape
+
+on:
+  schedule:
+    - cron: '30 4 * * *'   # dagelijks 05:30/06:30 NL-tijd
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'snelstart, jortt of beide'
+        default: 'beide'
+
+concurrency: { group: scrape, cancel-in-progress: false }
+permissions: { contents: read }
+
+jobs:
+  scrape:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    container: mcr.microsoft.com/playwright:v1.56.1-noble
+    env:
+      PORTAL_URL: ${{ secrets.PORTAL_URL }}
+      INGEST_SECRET: ${{ secrets.INGEST_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm ci --omit=dev
+      - run: npm test
+      - name: SnelStart (Smeetsit)
+        if: ${{ github.event_name == 'schedule' || inputs.target != 'jortt' }}
+        env:
+          SNELSTART_EMAIL: ${{ secrets.SNELSTART_EMAIL }}
+          SNELSTART_PASSWORD: ${{ secrets.SNELSTART_PASSWORD }}
+          SNELSTART_ADMINISTRATIE: ${{ secrets.SNELSTART_ADMINISTRATIE }}
+        run: node snelstart.mjs
+      - name: Jortt (JKC Software)
+        if: ${{ always() && (github.event_name == 'schedule' || inputs.target != 'snelstart') }}
+        env:
+          JORTT_WEB_EMAIL: ${{ secrets.JORTT_WEB_EMAIL }}
+          JORTT_WEB_PASSWORD: ${{ secrets.JORTT_WEB_PASSWORD }}
+        run: node jortt.mjs
+      # Bewust GEEN screenshots als artifact uploaden: die kunnen financiële data bevatten.
